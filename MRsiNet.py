@@ -13,26 +13,31 @@ class MRSI3D(nn.Module):
         self.conv2_real = nn.Conv3d(in_channels=128, out_channels=64, kernel_size=3, padding=1)   # Output channels: 64
         self.conv2_imag = nn.Conv3d(in_channels=128, out_channels=64, kernel_size=3, padding=1)   # Output channels: 64
         
-        self.conv3_real = nn.Conv3d(in_channels=64, out_channels=32, kernel_size=3, padding=1)    # Output channels: 32
-        self.conv3_imag = nn.Conv3d(in_channels=64, out_channels=32, kernel_size=3, padding=1)    # Output channels: 32
+        
+        self.conv3_real = nn.Conv3d(in_channels=64, out_channels=64, kernel_size=3, padding=1)    # Output channels: 32
+        self.conv3_imag = nn.Conv3d(in_channels=64, out_channels=64, kernel_size=3, padding=1)    # Output channels: 32
+        
+        self.conv4_real = nn.Conv3d(in_channels=64, out_channels=32, kernel_size=3, padding=1)    # Output channels: 32
+        self.conv4_imag = nn.Conv3d(in_channels=64, out_channels=32, kernel_size=3, padding=1)    # Output channels: 32
+        
         
         # Define the output convolutional layer for both real and imaginary parts
-        self.conv4_real = nn.Conv3d(in_channels=32, out_channels=768, kernel_size=3, padding=1)  # Output channels: 768 (real part)
-        self.conv4_imag = nn.Conv3d(in_channels=32, out_channels=768, kernel_size=3, padding=1)  # Output channels: 768 (imaginary part)
+        self.conv5_real = nn.Conv3d(in_channels=32, out_channels=768, kernel_size=3, padding=1)  # Output channels: 768 (real part)
+        self.conv5_imag = nn.Conv3d(in_channels=32, out_channels=768, kernel_size=3, padding=1)  # Output channels: 768 (imaginary part)
         
         # Batch Normalization layers for intermediate convolutions
         self.bn_real_1 = nn.BatchNorm3d(128)
         self.bn_imag_1 = nn.BatchNorm3d(128)
-        
+        """
         self.bn_real_2 = nn.BatchNorm3d(64)
         self.bn_imag_2 = nn.BatchNorm3d(64)
         
         self.bn_real_3 = nn.BatchNorm3d(32)
         self.bn_imag_3 = nn.BatchNorm3d(32)
-
+        """
         # Activation function (used in intermediate layers only)
         self.relu = nn.ReLU()
-
+ 
     def forward(self, real_input, imag_input):
         # Convolutions for the real part
         real_out = self.bn_real_1(self.conv1_real(real_input))  # BatchNorm before ReLU
@@ -41,20 +46,26 @@ class MRSI3D(nn.Module):
         imag_out = self.relu(imag_out)
 
         # Convolutions for the imaginary part
-        real_out = self.bn_real_2(self.conv2_real(real_out))  # BatchNorm before ReLU
-        imag_out = self.bn_imag_2(self.conv2_imag(imag_out))  # BatchNorm before ReLU
+        real_out = self.conv2_real(real_out)  # BatchNorm before ReLU
+        imag_out = self.conv2_imag(imag_out) # BatchNorm before ReLU
         real_out = self.relu(real_out)
         imag_out = self.relu(imag_out)
 
         # Convolutions for the final feature extraction
-        real_out = self.bn_real_3(self.conv3_real(real_out))  # BatchNorm before ReLU
-        imag_out = self.bn_imag_3(self.conv3_imag(imag_out))  # BatchNorm before ReLU
+        real_out = self.conv3_real(real_out)  # BatchNorm before ReLU
+        imag_out = self.conv3_imag(imag_out) # BatchNorm before ReLU
         real_out = self.relu(real_out)
         imag_out = self.relu(imag_out)
         
+        real_out = self.conv4_real(real_out)  # BatchNorm before ReLU
+        imag_out = self.conv4_imag(imag_out) # BatchNorm before ReLU
+        real_out = self.relu(real_out)
+        imag_out = self.relu(imag_out)
+        
+
         # Final convolution to reconstruct both real and imaginary parts
-        real_output = self.conv4_real(real_out)
-        imag_output = self.conv4_imag(imag_out)
+        real_output = self.conv5_real(real_out)
+        imag_output = self.conv5_imag(imag_out)
         
         # Combine the real and imaginary parts
         output = torch.complex(real_output, imag_output)
