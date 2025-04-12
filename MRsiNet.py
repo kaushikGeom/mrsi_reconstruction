@@ -1,92 +1,95 @@
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 import torch
 import torch.nn as nn
+import math
 
-# Define the complex 3D CNN model
+
 class MRSI3D(nn.Module):
     def __init__(self):
-        super(MRSI3D, self).__init__()
-        
-        # Define the 3D Convolutional layers for the real part and imaginary part
-        self.conv1_real = nn.Conv3d(in_channels=768, out_channels=128, kernel_size=3, padding=1)  # Real part input
-        self.conv1_imag = nn.Conv3d(in_channels=768, out_channels=128, kernel_size=3, padding=1)  # Imaginary part input
-        
-        self.conv2_real = nn.Conv3d(in_channels=128, out_channels=64, kernel_size=3, padding=1)   # Output channels: 64
-        self.conv2_imag = nn.Conv3d(in_channels=128, out_channels=64, kernel_size=3, padding=1)   # Output channels: 64
-        
-        
-        self.conv3_real = nn.Conv3d(in_channels=64, out_channels=64, kernel_size=3, padding=1)    # Output channels: 32
-        self.conv3_imag = nn.Conv3d(in_channels=64, out_channels=64, kernel_size=3, padding=1)    # Output channels: 32
-        
-        self.conv4_real = nn.Conv3d(in_channels=64, out_channels=32, kernel_size=3, padding=1)    # Output channels: 32
-        self.conv4_imag = nn.Conv3d(in_channels=64, out_channels=32, kernel_size=3, padding=1)    # Output channels: 32
-        
-        
-        # Define the output convolutional layer for both real and imaginary parts
-        self.conv5_real = nn.Conv3d(in_channels=32, out_channels=768, kernel_size=3, padding=1)  # Output channels: 768 (real part)
-        self.conv5_imag = nn.Conv3d(in_channels=32, out_channels=768, kernel_size=3, padding=1)  # Output channels: 768 (imaginary part)
-        
-        # Batch Normalization layers for intermediate convolutions
-        self.bn_real_1 = nn.BatchNorm3d(128)
-        self.bn_imag_1 = nn.BatchNorm3d(128)
+        super().__init__()
+        # Input channels: 2 (real + imaginary)
+        self.encoder = nn.Sequential(
+            nn.Conv3d(2, 128, kernel_size=3, padding=1),
+            nn.BatchNorm3d(128),
+            nn.ReLU(),
+            nn.Conv3d(128, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(64, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(64, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(64, 32, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(32, 2, kernel_size=3, padding=1)  # No activation for complex output
+        )
+
+    def forward(self, real, imag):
         """
-        self.bn_real_2 = nn.BatchNorm3d(64)
-        self.bn_imag_2 = nn.BatchNorm3d(64)
-        
-        self.bn_real_3 = nn.BatchNorm3d(32)
-        self.bn_imag_3 = nn.BatchNorm3d(32)
+        real: Tensor of shape [batch, 22, 22, 21] (real part)
+        imag: Tensor of shape [batch, 22, 22, 21] (imaginary part)
         """
-        # Activation function (used in intermediate layers only)
-        self.relu = nn.ReLU()
- 
-    def forward(self, real_input, imag_input):
-        # Convolutions for the real part
-        real_out = self.bn_real_1(self.conv1_real(real_input))  # BatchNorm before ReLU
-        imag_out = self.bn_imag_1(self.conv1_imag(imag_input))  # BatchNorm before ReLU
-        real_out = self.relu(real_out)
-        imag_out = self.relu(imag_out)
+        x_in = torch.stack([real, imag], dim=1)  # Shape: [batch, 2, 22, 22, 21]
+        out = self.encoder(x_in)  # Output: [batch, 2, 22, 22, 21]
+        out_real = out[:, 0, :, :, :]  # First channel as real part
+        out_imag = out[:, 1, :, :, :]  # Second channel as imaginary part
 
-        # Convolutions for the imaginary part
-        real_out = self.conv2_real(real_out)  # BatchNorm before ReLU
-        imag_out = self.conv2_imag(imag_out) # BatchNorm before ReLU
-        real_out = self.relu(real_out)
-        imag_out = self.relu(imag_out)
+        return torch.complex(out_real, out_imag)  # Convert back to complex tensor
 
-        # Convolutions for the final feature extraction
-        real_out = self.conv3_real(real_out)  # BatchNorm before ReLU
-        imag_out = self.conv3_imag(imag_out) # BatchNorm before ReLU
-        real_out = self.relu(real_out)
-        imag_out = self.relu(imag_out)
+class MRSI3D_WB(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Input channels: 2 (real + imaginary)
+        self.encoder = nn.Sequential(
+            nn.Conv3d(2, 128, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(128, 128, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(128, 128, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(128, 32, kernel_size=3, padding=1),
+            nn.ReLU(),
+        )
+
+        self.decoder = nn.Sequential(
+            nn.Conv3d(32, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(64, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(64, 128, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(128, 2, kernel_size=3, padding=1)
+        )
         
-        real_out = self.conv4_real(real_out)  # BatchNorm before ReLU
-        imag_out = self.conv4_imag(imag_out) # BatchNorm before ReLU
-        real_out = self.relu(real_out)
-        imag_out = self.relu(imag_out)
+
+    def forward(self, real, imag):
+        """
+        real: Tensor of shape [batch, 22, 22, 21] (real part)
+        imag: Tensor of shape [batch, 22, 22, 21] (imaginary part)
+        """
+        x_in = torch.stack([real, imag], dim=1)  # Shape: [batch, 2, 22, 22, 21]
+        out = self.encoder(x_in)  # Output: [batch, 2, 22, 22, 21]
+        out = self.decoder(out)  # Output: [batch, 2, 22, 22, 21]
         
+        out_real = out[:, 0, :, :, :]  # First channel as real part
+        out_imag = out[:, 1, :, :, :]  # Second channel as imaginary part
 
-        # Final convolution to reconstruct both real and imaginary parts
-        real_output = self.conv5_real(real_out)
-        imag_output = self.conv5_imag(imag_out)
-        
-        # Combine the real and imaginary parts
-        output = torch.complex(real_output, imag_output)
-        
-        return output
+        return torch.complex(out_real, out_imag)  # Convert back to complex tensor
 
 
-""" # Check if CUDA (GPU) is available
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Example usage
 
-# Instantiate the model
-model = MRSI3D().to(device)
+""" batch_size = 100
+real_part = torch.randn(batch_size, 22, 22, 21, dtype=torch.float32)  # Real part
+imag_part = torch.randn(batch_size, 22, 22, 21, dtype=torch.float32)  # Imaginary part
 
-# Example input tensor with shape (batch_size=10, 96, 8, 22, 22, 21)
-# Separate real and imaginary parts
-input_real = torch.randn(16, 96 * 8, 22, 22, 21).to(device)  # Real part
-input_imag = torch.randn(16, 96 * 8, 22, 22, 21).to(device)  # Imaginary part
+model = MRSI3D_WB()
+output = model(real_part, imag_part)
 
-# Forward pass
-output_tensor = model(input_real, input_imag)
-
-# Print output shape
-print("Output Tensor Shape:", output_tensor.shape)  # Should match (10, 768, 22, 22, 21)
+print("Output shape:", output.shape)  # Should be [batch, 22, 22, 21] complex
  """
+
+
+

@@ -1,33 +1,49 @@
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-import os
-os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+from mrsi_utils import normalize_complex_minmax_torch
 
-# Load the .npy file
-fs_path = "C:\\Users\\Sumit\\Desktop\\Hauke_MRSI_Data\\fulldata_mrsi\\Ground_Truth.npy"  # Replace with your .npy file path
+""" # Load the .npy file
+fs_path="C:\\Users\\Sumit\\Desktop\\Hauke_MRSI_Data\\Full_Rank_All.npy"
 numpy_fs = np.load(fs_path)
-us_path = "C:\\Users\\Sumit\\Desktop\\Hauke_MRSI_Data\\fulldata_mrsi\\Undersampled_AF_3.npy"  # Replace with your .npy file path
+
+us_path="C:\\Users\\Sumit\\Desktop\\Hauke_MRSI_Data\\Undersampled_AF5.npy"
 numpy_us = np.load(us_path)
 
-tensor_fs=torch.save(numpy_fs, 'mrsi_fs.pt')
-tensor_us=torch.save(numpy_us, 'mrsi_us.pt')
+mask_path="C:\\Users\\Sumit\\Desktop\\Hauke_MRSI_Data\\masks.npy"
+numpy_mask = np.load(mask_path)
+ """
+#exit()
+tensor_fs=torch.load('lowranked_mrsi_fs.pt')
+tensor_us=torch.load('lowranked_mrsi_us.pt')
+tensor_mask=torch.load('numpy_mask.pt')
 
-exit()
-tensor_fs=torch.load('mrsi_fs.pt')
-tensor_us=torch.load('mrsi_us.pt')
+mrsi_fs=normalize_complex_minmax_torch(tensor_fs)
+mrsi_us=normalize_complex_minmax_torch(tensor_us)
+
+mrsi_fs=mrsi_fs*tensor_mask[:,:,:, None, None,:]
+mrsi_us=mrsi_us*tensor_mask[:,:,:, None, None,:]
+
+torch.save(mrsi_fs, 'mask_norm_lowranked_mrsi_fs.pt')
+torch.save(mrsi_us, 'mask_norm_lowranked_mrsi_us.pt')
+
+
+
 
 # Convert the NumPy array to a PyTorch tensor
 tensor_fs = torch.abs(torch.tensor(tensor_fs))
-tensor_us = torch.abs(torch.tensor(tensor_fs))
+tensor_us = torch.abs(torch.tensor(tensor_us))
+
+patient=4
 
 # Plot the images side by side
 plt.figure(figsize=(10, 5))  # Adjust the figure size as needed
-
 for i in range(15):
     
-    image_fs= tensor_fs[:,:, 10, 0+i, 6, 0].numpy()
-    image_us= tensor_us[:,:, 10, 0+i, 6, 0].numpy()
+    image_fs= tensor_fs[:,:, 10, 0+i, patient, 0].numpy()
+    image_us= tensor_us[:,:, 10, 0+i, patient, 0].numpy()
 
 
     # Display Image 1
